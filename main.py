@@ -4,6 +4,17 @@ import sqlite3
 import drawio_functions as Drawio
 import xml.etree.ElementTree as ET
 import re
+import shutil
+
+#load config file
+config = {}
+
+with open('config.txt', 'r') as f:
+	for line in f:
+		# Split the line into a key and a value
+		key, value = line.strip().split('=')
+		# Store the key-value pair in the dictionary
+		config[key] = value
 
 class Device:
 	def __init__(self, ip, name):
@@ -94,9 +105,11 @@ def update_cells(data, devices):
 		# Read the contents of the file
 		file.write(newdata)
 
-	command = f"draw.io\\draw.io.exe --export temp.drawio --format svg --uncompressed --output testing.svg"
+	command = f"draw.io\\draw.io.exe --export temp.drawio --format svg --uncompressed --output tempsvg.svg"
 	process = subprocess.Popen(command, stdout=subprocess.PIPE, shell=True)
 	stdout, stderr = process.communicate()
+	output_file_corrected = config['output_file']
+	shutil.move(r"tempsvg.svg", f"{output_file_corrected}")
 	return process.returncode == 0
 
 
@@ -104,7 +117,7 @@ def update_cells(data, devices):
 
 
 async def main():
-	drawio_data = Drawio.DrawioDecoder("testdiagram.drawio")
+	drawio_data = Drawio.DrawioDecoder(config['input_file'])
 	decoded_drawio_data = drawio_data.decoded_data
 	devices = get_device_list_from_cells(decoded_drawio_data)
 

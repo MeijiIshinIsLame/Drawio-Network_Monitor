@@ -49,3 +49,7 @@ coverage.xml
 
 # Sphinx documentation
 docs/_build/
+
+zachtest.drawio
+temp.drawio
+tempsvg.svg

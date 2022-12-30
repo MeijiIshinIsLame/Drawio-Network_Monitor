@@ -1,0 +1,2 @@
+input_file=zachtest.drawio
+output_file=C:/yourmom/svg_here.svg
