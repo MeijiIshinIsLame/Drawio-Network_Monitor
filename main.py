@@ -5,6 +5,7 @@ import drawio_functions as Drawio
 import xml.etree.ElementTree as ET
 import re
 import shutil
+from pysnmp.hlapi import *
 
 #load config file
 config = {}
@@ -22,6 +23,10 @@ class Device:
 		self.name = name
 		self.status = 0
 		self.neighbors = []
+		self.interface_descs = {}
+		self.interface_statuses = {}
+
+
 
 		# Connect to the database and create a table if it doesn't exist
 		self.conn = sqlite3.connect("devices.db")
@@ -58,7 +63,28 @@ class Device:
 		else:
 			print(f"{self.ip}: {self.name} - Offline")
 
+	def get_snmp_data(self, oid):
+		table = {}
+		iterator = nextCmd(SnmpEngine(),
+			CommunityData(config['community_string']),
+			UdpTransportTarget((self.ip, 161)),
+			ContextData(),
+			ObjectType(ObjectIdentity(oid)),
+			lexicographicMode = False)
 
+		for errorIndication, errorStatus, errorIndex, var_binds in iterator:
+			for var_bind in var_binds:
+				#print(' = '.join([x.prettyPrint() for x in var_bind]))
+				oid, value = var_bind
+				interface_index = oid.prettyPrint().split('.')[-1]
+				table[interface_index] = value.prettyPrint()
+		return table
+
+	async def update_int_statuses(self):
+		self.interface_statuses = self.get_snmp_data('1.3.6.1.2.1.2.2.1.8')
+
+	async def update_int_descs(self):
+		self.interface_descs = self.get_snmp_data('1.3.6.1.2.1.2.2.1.2')
 
 
 
@@ -124,12 +150,21 @@ async def main():
 	while True:
 		# Start a task to update the status of each Device
 		tasks = [asyncio.create_task(device.update_status()) for device in devices]
+		tasks2 = [asyncio.create_task(device.update_int_descs()) for device in devices]
+		tasks3 = [asyncio.create_task(device.update_int_statuses()) for device in devices]
 
 		# Wait for all tasks to complete
 		await asyncio.gather(*tasks)
+		await asyncio.gather(*tasks2)
+		await asyncio.gather(*tasks3)
 
 		# Sleep for 5 seconds before updating again
 		await asyncio.sleep(5)
+		for device in devices:
+			await device.update_int_descs()
+			await device.update_int_statuses()
+			print(device.interface_descs)
+			print(device.interface_statuses)
 		update_cells(decoded_drawio_data, devices)
 
 
