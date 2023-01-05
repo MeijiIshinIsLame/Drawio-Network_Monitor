@@ -34,6 +34,7 @@ class Device:
 		self.status = 0
 		self.neighbors = []
 		self.interfaces = []
+		self.xml_object_id = None
 
 		self.update_interfaces()
 
@@ -79,14 +80,31 @@ class Device:
 			the_interface = Interface(interface_id, interface_name, interface_status)
 			updated_interfaces.append(the_interface)
 		self.interfaces = updated_interfaces
-			
-		print("---------------------")
-		print(self.interfaces)
-		print("---------------------")
+		del updated_interfaces
+
+	def find_interface_by_name(self, name):
 		for interface in self.interfaces:
-			print(interface.name, interface.status)
+			if interface.name is name:
+				return interface
+		return None
+
+	def get_interface_status(self, interface_name):
+		for interface in self.interfaces:
+			if interface.name is name:
+				return interface.status
+		return 2
 
 
+def calculate_line_style(status_left, status_right):
+	if status_left is online and status_right is online:
+		return "left_online_right_online"
+	if status_left is offline and status_right is offline:
+		return "left_offline_right_offline"
+	if status_left is online and status_right is offline:
+		return "left_online_right_offline"
+	if status_left is offline and status_right is online:
+		return "left_offline_right_online"
+	return None
 
 def get_device_list_from_cells(data):
 	device_list = []
@@ -109,12 +127,16 @@ def get_device_list_from_cells(data):
 		match = re.search(pattern, cellvalue)
 		if match:
 			name, ip_address = cellvalue.split("<br>")
-			device_list.append(Device(ip_address, name))
+			new_device = Device(ip_address, name)
+			new_device.xml_object_id = cell.attrib["id"]
+			device_list.append(new_device)
+			print(new_device.xml_object_id)
 	return device_list
 
 def update_cells(data, devices):
 	online_style = "rounded=0;whiteSpace=wrap;html=1;fillColor=green;"
 	offline_style = "rounded=0;whiteSpace=wrap;html=1;fillColor=red;"
+
 	root = ET.fromstring(data)
 
 	for mxcell in root.findall('.//mxCell'):
@@ -125,6 +147,15 @@ def update_cells(data, devices):
 				else:
 					mxcell.attrib['style'] = offline_style
 				print(mxcell.attrib['style'])
+
+	print("\n\n\n\nlalala--------------------------------\n\n\n")
+
+
+	#updating link status for interfaces, do this by finding the mxcell for the object and then finding the left and right link
+	for o in root.findall('.//object'):
+		for device in devices:
+			pass #work on this later
+
 	newdata = ET.tostring(root).decode('utf-8')
 	with open("temp.drawio", 'w') as file:
 		# Read the contents of the file
