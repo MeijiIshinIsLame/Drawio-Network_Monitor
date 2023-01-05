@@ -1,6 +1,5 @@
 import asyncio
 import subprocess
-import sqlite3
 import drawio_functions as Drawio
 import xml.etree.ElementTree as ET
 import re
@@ -10,6 +9,10 @@ from pysnmp.hlapi import *
 #load config file
 config = {}
 
+#snmp values for 1.3.6.1.2.1.2.2.1.8 - ifOperStatus
+online = 1
+offline = 2
+
 with open('config.txt', 'r') as f:
 	for line in f:
 		# Split the line into a key and a value
@@ -17,28 +20,23 @@ with open('config.txt', 'r') as f:
 		# Store the key-value pair in the dictionary
 		config[key] = value
 
+class Interface:
+	def __init__(self, int_id, name, status):
+		self.int_id = int_id
+		self.name = name
+		self.status = status
+
+
 class Device:
 	def __init__(self, ip, name):
 		self.ip = ip
 		self.name = name
 		self.status = 0
 		self.neighbors = []
-		self.interface_descs = {}
-		self.interface_statuses = {}
+		self.interfaces = []
 
+		self.update_interfaces()
 
-
-		# Connect to the database and create a table if it doesn't exist
-		self.conn = sqlite3.connect("devices.db")
-		c = self.conn.cursor()
-		c.execute(
-			"CREATE TABLE IF NOT EXISTS devices (ip text, name text, online integer)"
-		)
-		# initialize the device as offline
-		c.execute(
-			"INSERT OR REPLACE INTO devices VALUES (?, ?, ?)", (self.ip, self.name, 0)
-		)
-		self.conn.commit()
 
 	async def ping(self):
 		command = f"ping /n 3 /a {self.ip}"
@@ -49,14 +47,6 @@ class Device:
 	async def update_status(self):
 		is_online = await self.ping()
 		self.status = is_online
-
-		# Update the online status in the database
-		c = self.conn.cursor()
-		c.execute(
-			"UPDATE devices SET online = ? WHERE ip = ? AND name = ?",
-			(is_online, self.ip, self.name),
-		)
-		self.conn.commit()
 
 		if is_online:
 			print(f"{self.ip}: {self.name} - Online")
@@ -80,12 +70,21 @@ class Device:
 				table[interface_index] = value.prettyPrint()
 		return table
 
-	async def update_int_statuses(self):
-		self.interface_statuses = self.get_snmp_data('1.3.6.1.2.1.2.2.1.8')
-
-	async def update_int_descs(self):
-		self.interface_descs = self.get_snmp_data('1.3.6.1.2.1.2.2.1.2')
-
+	def update_interfaces(self):
+		updated_interfaces = []
+		interface_statuses = self.get_snmp_data('1.3.6.1.2.1.2.2.1.8')
+		interface_descs = self.get_snmp_data('1.3.6.1.2.1.2.2.1.2')
+		for interface_id, interface_name in interface_descs.items():
+			interface_status = interface_statuses[interface_id]
+			the_interface = Interface(interface_id, interface_name, interface_status)
+			updated_interfaces.append(the_interface)
+		self.interfaces = updated_interfaces
+			
+		print("---------------------")
+		print(self.interfaces)
+		print("---------------------")
+		for interface in self.interfaces:
+			print(interface.name, interface.status)
 
 
 
@@ -150,21 +149,14 @@ async def main():
 	while True:
 		# Start a task to update the status of each Device
 		tasks = [asyncio.create_task(device.update_status()) for device in devices]
-		tasks2 = [asyncio.create_task(device.update_int_descs()) for device in devices]
-		tasks3 = [asyncio.create_task(device.update_int_statuses()) for device in devices]
 
 		# Wait for all tasks to complete
 		await asyncio.gather(*tasks)
-		await asyncio.gather(*tasks2)
-		await asyncio.gather(*tasks3)
 
 		# Sleep for 5 seconds before updating again
 		await asyncio.sleep(5)
 		for device in devices:
-			await device.update_int_descs()
-			await device.update_int_statuses()
-			print(device.interface_descs)
-			print(device.interface_statuses)
+			device.update_interfaces()
 		update_cells(decoded_drawio_data, devices)
 
 
