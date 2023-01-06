@@ -20,6 +20,23 @@ with open('config.txt', 'r') as f:
 		# Store the key-value pair in the dictionary
 		config[key] = value
 
+class Connector:
+	def __init__(self, device1, device2):
+		self.device1 = None
+		self.device2 = None
+		self.connection_direction = None
+		self.config = {}
+
+	#work on this next, determine if vertical and horizontal to also catch for diagonal
+	def determine_connection(self):
+		if self.device1.xpos == self.device2.xpos:
+			self.connection_direction = "vertical"
+		else if self.device1.ypos == self.device2.ypos:
+			self.connection_direction = "horizontal"
+		else:
+			self.connection_direction = "diagonal"
+
+
 class Interface:
 	def __init__(self, int_id, name, status):
 		self.int_id = int_id
@@ -35,6 +52,8 @@ class Device:
 		self.neighbors = []
 		self.interfaces = []
 		self.xml_object_id = None
+		self. xpos = 0
+		self. ypos = 0
 
 		self.update_interfaces()
 
@@ -153,9 +172,8 @@ def update_cells(data, devices):
 
 	#updating link status for interfaces, do this by finding the mxcell for the object and then finding the left and right link
 	for o in root.findall('.//object'):
-		for device in devices:
-			pass #work on this later
-
+		for m in o.findall('.//mxCell'):
+			print(m.attrib, m)
 	newdata = ET.tostring(root).decode('utf-8')
 	with open("temp.drawio", 'w') as file:
 		# Read the contents of the file
